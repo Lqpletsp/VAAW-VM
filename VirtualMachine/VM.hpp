@@ -1,3 +1,4 @@
+#pragma once
 #include <deque>
 #include <stack>
 #include <array>
@@ -36,7 +37,9 @@ namespace VMF{
             std::stack<int> g_MemoryPool;
             //methods
             void OUTPUT();
-            void SET_IN_BUFFER(); 
+            void SET_IN_WBUFFER(); 
+            void SET_IN_CBUFFER(); 
+            void SET_IN_IBUFFER(); 
             void SET_IN_IDENTIFIER(); 
             void CHANGE_BCP(); 
             void INPUT(); 
@@ -48,6 +51,8 @@ namespace VMF{
             void LoadInIBuffer(); // for all types of values
             void LoadInCBuffer(); // for all types of values
             void LoadBCInWBuffer(); // stores the data of the bytecode in WBuffer
+            void LoadBCInIBuffer(); // stores the data of the bytecode in IBuffer
+            void LoadBCInCBuffer(); // stores the data of the bytecode in CBuffer
             void AllocateMemoryInCBuffer(); 
             void AllocateMemoryInWBuffer(); 
             void AllocateMemoryInIBuffer(); 
@@ -80,6 +85,7 @@ namespace VMF{
                 OutOfBoundsInWBuffer, 
                 UnIdentifiedInstruction, 
                 AttemptedAccessToUninitializedVariable, 
+                GarbageValueForBCP,
             };
             const std::unordered_map<int, VMExceptions> MapExceptionCodeAndMessage = {
                 {0,  VMExceptions::RanOutOfVirtualVolatileMemory},
@@ -93,7 +99,8 @@ namespace VMF{
                 {8,  VMExceptions::OutOfBoundsInIBuffer},
                 {9,  VMExceptions::OutOfBoundsInWBuffer},
                 {10, VMExceptions::UnIdentifiedInstruction},
-                {11, VMExceptions::AttemptedAccessToUninitializedVariable}
+                {11, VMExceptions::AttemptedAccessToUninitializedVariable},
+                {12, VMExceptions::GarbageValueForBCP}, 
             };
             const std::unordered_map<VMExceptions,std::string> ExceptionMessage{
                 {VMExceptions::EmptyCBuffer, "Computation buffer empty"},
@@ -108,6 +115,7 @@ namespace VMF{
                 {VMExceptions::StringDataInIBuffer, "String data cannot be stored in IBuffer as a whole"}, 
                 {VMExceptions::StringDataInWBuffer, "String data cannot be stored in WBuffer as a whole"},
                 {VMExceptions::AttemptedAccessToUninitializedVariable, "Identifier attempted to access is uninitialized"},
+                {VMExceptions::GarbageValueForBCP, "BCP must be of type INTEGER but was not given"},
             };
             void HandleException(); 
     };

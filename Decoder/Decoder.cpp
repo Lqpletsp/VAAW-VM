@@ -202,73 +202,81 @@ rtrVal Decoder::iniVar(){
 }
 rtrVal Decoder::iniIR(){
     if (DecodedIR.empty()) return {0};
-    bool CommandMode = true, VID = false;  
+    bool CommandMode = true, VID = false, quotation = false; 
     std::string token; 
+    char PastQuotation = '\0'; 
     Dat::ByteCodeType BT; 
     DTFD DT; 
     Dat::DataTypes BCType; 
-    for (const char ch: DecodedIR){
-        if (ch == ' ' || ch == '\n'){
-            if (CommandMode){
-                auto it = InstMap.find(token); 
-                if (it == InstMap.end()){
-                    auto it = DataTypesMap.find(token); 
-                    if (it == DataTypesMap.end()) {
-                        return {1,"[SECURITY: Command \"" + token + "\" not found]" };
+
+    for (const char ch : DecodedIR){
+        if (quotation) {
+            if (ch == PastQuotation) {
+                quotation = false; 
+                PastQuotation = '\0';
+            } else {
+                token.push_back(ch);
+            }
+        } 
+        else if (ch == '\"' || ch == '\'') {
+            quotation = true;
+            PastQuotation = ch; 
+        } 
+        else if (ch == ' ' || ch == '\n') {
+            if (!token.empty()) {
+                if (CommandMode){
+                    auto it = InstMap.find(token); 
+                    if (it == InstMap.end()){
+                        auto dtIt = DataTypesMap.find(token); 
+                        if (dtIt == DataTypesMap.end()) {
+                            return {1, "[SECURITY: Command \"" + token + "\" not found]"};
+                        }
+                        switch (dtIt->second) {
+                            case DTFD::BOOLEAN: BCType = Dat::BOOLEAN; break; 
+                            case DTFD::INTEGER: BCType = Dat::INTEGER; break; 
+                            case DTFD::CHAR: BCType = Dat::CHAR; break; 
+                            case DTFD::STRING: BCType = Dat::STRING; break; 
+                            case DTFD::VID: VID = true; break;
+                            case DTFD::DOUBLE: BCType = Dat::DOUBLE; break;
+                            default: 
+                                return {1, "[SECURITY: Unidentified data type \"" + token + "\" used]"};
+                        }
+                        token.clear();
+                        DT = dtIt->second;
+                        CommandMode = false;
+                        continue; 
                     }
-                    switch (it->second) {
-                        case DTFD::BOOLEAN: 
-                            BCType = Dat::BOOLEAN; 
-                            break; 
-                        case DTFD::INTEGER:
-                            BCType = Dat::INTEGER; 
-                            break; 
-                        case DTFD::CHAR: 
-                            BCType = Dat::CHAR; 
-                            break; 
-                        case DTFD::STRING: 
-                            BCType = Dat::STRING; 
-                            break; 
-                        case DTFD::VID: 
-                            VID = true; 
-                            break;
-                        case DTFD::DOUBLE: 
-                            BCType = Dat::DOUBLE; 
-                            break;
-                        default: 
-                            return {1, "[SECURITY: Unidentified data type \"" + token + "\" used]"};
+                    BT.TType = Dat::VMInstruction; 
+                    BT.Sub_TType.VMInstruction = it->second;
+                    token.clear();
+                    Dat::ByteCode.push_back(BT);
+                    CommandMode = false;
+                } else {
+                    if (!ValidateTypes(token, DT)){ 
+                        return {.result = 1, .eval = "[SECURITY: Invalid data types for token]"};
+                    }
+                    BT.LT = token; 
+                    if (VID){
+                        try{
+                            ValidateVID(std::stoi(token));
+                            BT.TType = Dat::Identifier; 
+                        } catch(...){
+                            return {.result = 0, .eval = "[SECURITY: Expected INTEGER for variable ID but was not given]"};
+                        }
+                        VID = false; 
+                    } else {
+                        BT.TType = Dat::Constant;
+                        BT.Sub_TType.DT = BCType;
                     }
                     token.clear();
-                    CommandMode = false;
-                    continue; 
+                    Dat::ByteCode.push_back(BT);
                 }
-                BT.TType = Dat::VMInstruction; 
-                BT.Sub_TType.VMInstruction = it->second;
-                token.clear();
-                Dat::ByteCode.push_back(BT);
-                CommandMode = false;
-            } else {
-                if(!ValidateTypes(token, DT)){ 
-                    return {.result = 0, .eval = "[SECURITY: Invalid data types for token]"};
-                }
-                BT.LT = token; 
-                if (VID){
-                    try{
-                        ValidateVID(std::stoi(token));
-                        BT.TType = Dat::Identifier; 
-                    } catch(...){
-                        return {.result = 0, .eval = "[SECURITY: Expected INTEGER for variable ID but was not given]"};
-                    }
-                    VID = false; 
-                } else{
-                    BT.TType = Dat::Constant;
-                    BT.Sub_TType.DT = BCType;
-                }
-                token.clear();
-                Dat::ByteCode.push_back(BT);
             }
             if (ch == '\n') CommandMode = true;
-        } else token.push_back(ch);
+        } 
+        else {
+            token.push_back(ch);
+        }
     }
     return {0};
 }

@@ -17,6 +17,7 @@ bool VirtualMachine::iniMemmory(int x){
     }
     return true; 
 }
+
 void VirtualMachine::ReallocVMemory(){g_MemoryPool.push(GBuffer1);}
 void VirtualMachine::AllocateMemoryInWBuffer(){WBuffer.push_back(GBuffer1);}
 void VirtualMachine::AllocateMemoryInCBuffer(){CBuffer.push(GBuffer1);}
@@ -202,7 +203,7 @@ void VirtualMachine::LoadInIBuffer(){
 void VirtualMachine::LoadBCInCBuffer(){
     switch(Dat::ByteCode.at(BCP).TType){
         case Dat::Constant:
-            (Dat::ByteCode.at(BCP).LT.size() > 255) ? 
+            (Dat::ByteCode.at(BCP).LT.size() <= 255) ? 
             GBuffer2 = Dat::ByteCode.at(BCP).LT.size() : GBuffer2 = 255; 
             std::strcpy(DPBuffer.Data.data(), Dat::ByteCode.at(BCP).LT.c_str());
             DPBuffer.DTP = Dat::ByteCode.at(BCP).Sub_TType.DT; 
@@ -228,7 +229,7 @@ void VirtualMachine::LoadBCInCBuffer(){
 void VirtualMachine::LoadBCInIBuffer(){
     switch(Dat::ByteCode.at(BCP).TType){
         case Dat::Constant:
-            (Dat::ByteCode.at(BCP).LT.size() > 255) ? 
+            (Dat::ByteCode.at(BCP).LT.size() <= 255) ? 
             GBuffer2 = Dat::ByteCode.at(BCP).LT.size() : GBuffer2 = 255; 
             std::strcpy(DPBuffer.Data.data(), Dat::ByteCode.at(BCP).LT.c_str());
             DPBuffer.DTP = Dat::ByteCode.at(BCP).Sub_TType.DT; 
@@ -255,7 +256,7 @@ void VirtualMachine::LoadBCInIBuffer(){
 void VirtualMachine::LoadBCInWBuffer(){
     switch(Dat::ByteCode.at(BCP).TType){
         case Dat::Constant:
-            (Dat::ByteCode.at(BCP).LT.size() > 255) ? 
+        (Dat::ByteCode.at(BCP).LT.size() <=  255) ? 
             GBuffer2 = Dat::ByteCode.at(BCP).LT.size() : GBuffer2 = 255; 
             std::strcpy(DPBuffer.Data.data(), Dat::ByteCode.at(BCP).LT.c_str());
             DPBuffer.DTP = Dat::ByteCode.at(BCP).Sub_TType.DT; 

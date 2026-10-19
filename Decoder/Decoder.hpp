@@ -19,6 +19,7 @@ namespace DF{
         CHAR, 
         STRING, 
         VID, 
+        ADDRESS, 
     };
     inline std::unordered_map<std::string,Dat::Instructions> InstMap = {
         {"SETV", Dat::SETV},

@@ -9,6 +9,7 @@ namespace Dat{
     Identifier,
     VMInstruction,
     VMKeywords,
+    ADDRESS
     };
 
     enum DataTypes {

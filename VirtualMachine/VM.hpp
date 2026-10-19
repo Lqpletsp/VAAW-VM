@@ -22,11 +22,13 @@ namespace VMF{
             // buffer variables can store any int value
             std::deque<int> IBuffer; // Input/Ouput Buffer
             std::deque<int> WBuffer; // Working Buffer
+            std::deque<int> GDBuffer; // General Deque Buffer
             std::stack<int> CBuffer; // Computational Buffer 
             int GBuffer0 = 0; // General Buffer 0 
             int GBuffer1 = 0; // General Buffer 1 
             int GBuffer2 = 0; // General Buffer 2
             int GBuffer3 = 0; // General Buffer 3 
+            int GBuffer4 = 0; // General Buffer 4
             Dat::VDT *VBuffer; // Variable Buffer
             struct DPair{
                 std::array<char, 256> Data; 
@@ -50,6 +52,7 @@ namespace VMF{
             void LoadInWBuffer(); // for all types of values
             void LoadInIBuffer(); // for all types of values
             void LoadInCBuffer(); // for all types of values
+            void LoadInVID(); 
             void LoadBCInWBuffer(); // stores the data of the bytecode in WBuffer
             void LoadBCInIBuffer(); // stores the data of the bytecode in IBuffer
             void LoadBCInCBuffer(); // stores the data of the bytecode in CBuffer
@@ -86,6 +89,7 @@ namespace VMF{
                 UnIdentifiedInstruction, 
                 AttemptedAccessToUninitializedVariable, 
                 GarbageValueForBCP,
+                ExpectingVIDOrAddress, 
             };
             const std::unordered_map<int, VMExceptions> MapExceptionCodeAndMessage = {
                 {0,  VMExceptions::RanOutOfVirtualVolatileMemory},
@@ -101,6 +105,7 @@ namespace VMF{
                 {10, VMExceptions::UnIdentifiedInstruction},
                 {11, VMExceptions::AttemptedAccessToUninitializedVariable},
                 {12, VMExceptions::GarbageValueForBCP}, 
+                {13, VMExceptions::ExpectingVIDOrAddress}, 
             };
             const std::unordered_map<VMExceptions,std::string> ExceptionMessage{
                 {VMExceptions::EmptyCBuffer, "Computation buffer empty"},
@@ -116,6 +121,7 @@ namespace VMF{
                 {VMExceptions::StringDataInWBuffer, "String data cannot be stored in WBuffer as a whole"},
                 {VMExceptions::AttemptedAccessToUninitializedVariable, "Identifier attempted to access is uninitialized"},
                 {VMExceptions::GarbageValueForBCP, "BCP must be of type INTEGER but was not given"},
+                {VMExceptions::ExpectingVIDOrAddress, "Expecting identifier ID or memory address, but received garbage value"},
             };
             void HandleException(); 
     };

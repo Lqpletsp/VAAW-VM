@@ -1,5 +1,5 @@
 #include "VM.hpp"
-#include "DTP.hpp"
+#include "../DTP.hpp"
 #include <iostream>
 #include <cstdlib>
 #include <cstring>
@@ -173,8 +173,8 @@ void VirtualMachine::LoadInWBuffer(){
     VirtualVolatileMemory.at(GBuffer1).DT = Dat::CHAR; 
 }
 void VirtualMachine::StoreInAddr(){
-    VirtualVolatileMemory.at(GBuffer1).Data = DPBuffer.Data[0];  
-    VirtualVolatileMemory.at(GBuffer1).DT = DPBuffer.DTP; 
+    VirtualVolatileMemory.at(GBuffer1).Data = VirtualVolatileMemory.at(GBuffer0).Data;   
+    VirtualVolatileMemory.at(GBuffer1).DT = VirtualVolatileMemory.at(GBuffer0).DT; 
 }
 void VirtualMachine::LoadInIBuffer(){
     if (DPBuffer.DTP == Dat::DataTypes::STRING){
@@ -328,8 +328,45 @@ void VirtualMachine::SET_IN_CBUFFER(){
     ++BCP; 
     LoadBCInCBuffer(); 
 }
+void VirtualMachine::LoadInVID(){
+    // expects identifier ID in GBuffer1 
+    VBuffer = &IdentifierMap->at(GBuffer1); 
+    if (VBuffer->MAA.empty()){
+        AllocateMemory(); 
+        VBuffer->MAA.push_back(GBuffer0); 
+        VirtualVolatileMemory.at(GBuffer0).DT = VBuffer->DT; 
+        GBuffer4 = GBuffer0; 
+    } else GBuffer4 = VBuffer->MAA.front(); 
+    GBuffer2 = 0; 
+    GetTopWBufferAddress(); 
+    // GBuffer1 gets overridden by GetTopWBufferAddress() so can use that as an index
+    while(VirtualVolatileMemory.at(GBuffer1).Data != "\0"){
+        if (GBuffer2 > VBuffer->MAA.size()){
+            AllocateMemory(); 
+            VBuffer->MAA.push_back(GBuffer0); 
+            VirtualVolatileMemory.at(GBuffer0).DT = VBuffer->DT; 
+        }
+        VirtualVolatileMemory.at(VBuffer->MAA.at(GBuffer2)) = VirtualVolatileMemory.at(GBuffer1);  
+        ClearTopWBuffer(); 
+        GetTopWBufferAddress(); 
+    };  
+}
 void VirtualMachine::SET_IN_IDENTIFIER(){
     ++BCP; 
+    if (Dat::ByteCode.at(BCP).TType != Dat::Identifier &&
+     Dat::ByteCode.at(BCP).TType != Dat::ADDRESS){
+        GBuffer0 = static_cast<int>(VMExceptions::ExpectingVIDOrAddress); 
+        HandleException(); 
+    }
+    if (Dat::ByteCode.at(BCP).TType == Dat::ADDRESS){
+        GetTopWBufferAddress(); 
+        GBuffer0 = GBuffer1; 
+        GBuffer1 = std::stoi(Dat::ByteCode.at(BCP).LT); 
+        StoreInAddr(); 
+    } else {
+        GBuffer1 = std::stoi(Dat::ByteCode.at(BCP).LT);
+        LoadInVID();
+    } 
 }
 void VirtualMachine::INPUT(){}
 void VirtualMachine::CHANGE_BCP(){
@@ -353,6 +390,8 @@ int VirtualMachine::ExecuteByteCode(){
                         OUTPUT(); 
                         break; 
                     case Dat::SETV: 
+                        SET_IN_IDENTIFIER(); 
+                        break;
                     case Dat::SETIB:
                         SET_IN_IBUFFER();
                         break; 

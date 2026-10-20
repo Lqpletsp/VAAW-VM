@@ -1,7 +1,6 @@
 #pragma once 
 #include <string>
 #include <vector>
-#include <deque>
 
 namespace Dat{
     enum BCT { // BCT -> Bytecode Types
@@ -74,7 +73,7 @@ namespace Dat{
     struct VDT{
         int VID; // Variable ID 
         DataTypes DT; // Data Type
-        std::deque<int> MAA; // Memory Adresses Assigned
+        std::vector<int> MAA; // Memory Adresses Assigned
         bool Immutable = false;  
     };
 

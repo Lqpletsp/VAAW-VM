@@ -13,6 +13,7 @@ namespace VMF{
             int ExecuteByteCode();
             int SetMemory(int MemoryDeclared); 
             void SetIdentifierMap(std::unordered_map<int, Dat::VDT> *Map); 
+            void DebugVarFnc(); 
         private: 
             // attributes
             int TotalMemoryDeclared; 

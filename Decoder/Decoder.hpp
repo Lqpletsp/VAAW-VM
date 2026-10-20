@@ -69,6 +69,7 @@ namespace DF{
             int GenerateByteCode(); 
             int GetMemoryDeclared(); 
             void CleanUp(); 
+            void DebugVarFnc();
             std::unordered_map<int, Dat::VDT> *GetIdenTable(); 
         private: 
             //attributes

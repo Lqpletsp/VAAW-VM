@@ -288,19 +288,19 @@ void VirtualMachine::BufferCleanUps(){
 void VirtualMachine::HandleException(){
     BufferCleanUps();
     GBuffer1 = 0; 
-    GBuffer2 = VirtualMachine::ExceptionMessage.at(VirtualMachine::MapExceptionCodeAndMessage.at(GBuffer0)).size(); 
+    GBuffer2 = VirtualMachine::ExceptionMessage.at(MapExceptionCodeAndMessage.at(GBuffer0)).size(); 
     std::snprintf(
         DPBuffer.Data.data(), 
         DPBuffer.Data.size(), 
         "[EXCP@BCP%d] : %s", 
         BCP, 
-        VirtualMachine::ExceptionMessage.at(VirtualMachine::MapExceptionCodeAndMessage.at(GBuffer0)).c_str()
+        VirtualMachine::ExceptionMessage.at(MapExceptionCodeAndMessage.at(GBuffer0)).c_str()
     );
     DPBuffer.DTP = Dat::STRING;
     LoadInIBuffer();
     GBuffer1 = std::string("[EXCP@BCP" + std::to_string(BCP) + "] : ").size(); 
     GBuffer2 = 0; 
-    GBuffer3 = VirtualMachine::ExceptionMessage.at(VirtualMachine::MapExceptionCodeAndMessage.at(GBuffer0)).size() + GBuffer1;
+    GBuffer3 = VirtualMachine::ExceptionMessage.at(MapExceptionCodeAndMessage.at(GBuffer0)).size() + GBuffer1;
     while (GBuffer2 != GBuffer3){
         OUTPUT(); 
         ++GBuffer2; 
@@ -330,18 +330,13 @@ void VirtualMachine::SET_IN_CBUFFER(){
 }
 void VirtualMachine::LoadInVID(){
     // expects identifier ID in GBuffer1 
+    DebugVarFnc(); 
     VBuffer = &IdentifierMap->at(GBuffer1); 
-    if (VBuffer->MAA.empty()){
-        AllocateMemory(); 
-        VBuffer->MAA.push_back(GBuffer0); 
-        VirtualVolatileMemory.at(GBuffer0).DT = VBuffer->DT; 
-        GBuffer4 = GBuffer0; 
-    } else GBuffer4 = VBuffer->MAA.front(); 
-    GBuffer2 = 0; 
     GetTopWBufferAddress(); 
+    GBuffer2 = 0;
     // GBuffer1 gets overridden by GetTopWBufferAddress() so can use that as an index
     while(VirtualVolatileMemory.at(GBuffer1).Data != "\0"){
-        if (GBuffer2 > VBuffer->MAA.size()){
+        if (GBuffer2 >= VBuffer->MAA.size()){
             AllocateMemory(); 
             VBuffer->MAA.push_back(GBuffer0); 
             VirtualVolatileMemory.at(GBuffer0).DT = VBuffer->DT; 
@@ -349,6 +344,7 @@ void VirtualMachine::LoadInVID(){
         VirtualVolatileMemory.at(VBuffer->MAA.at(GBuffer2)) = VirtualVolatileMemory.at(GBuffer1);  
         ClearTopWBuffer(); 
         GetTopWBufferAddress(); 
+        ++GBuffer2; 
     };  
 }
 void VirtualMachine::SET_IN_IDENTIFIER(){
@@ -414,5 +410,11 @@ int VirtualMachine::ExecuteByteCode(){
         }
         ++BCP; 
     }
-    return 0;} 
+    return 0;
+} 
+void VirtualMachine::DebugVarFnc(){
+    for (const auto it : *IdentifierMap){
+        std::cout << it.first << ' ' << static_cast<int>(it.second.DT) << '\n';
+    }
+}
 }

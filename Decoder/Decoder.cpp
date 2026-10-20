@@ -151,6 +151,7 @@ rtrVal Decoder::iniVar(){
                     return {1,
                  "[SECURITY: Non integer value was given for variable ID during identifier initialization]"};
                 ID = std::stoi(token); 
+                IdenMap[ID] = {}; 
             } else {
                 if (ID == -1) return {1, "[SECURITY: Invalid variable file syntax]"}; 
                 auto it =DataTypesMap.find(token); 
@@ -311,5 +312,10 @@ void Decoder::CleanUp(){
     std::string().swap(DecodedIR); 
     std::string().swap(DecodedMemory); 
     std::string().swap(DecodedVariable); 
+}
+void Decoder::DebugVarFnc(){
+    for (const auto it : IdenMap){
+        std::cout << it.first << ' ' << static_cast<int>(it.second.DT) << '\n'; 
+    }
 }
 }

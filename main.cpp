@@ -5,7 +5,7 @@
 int main(int argc, char *argv[]){
     // execution format: ./amcVM <Asmmic directory> 
     if (argc != 2) {
-        std::cerr << "Invalid execution format\nExpected: ./ASMMICVM <Asmmic directory>\n";
+        std::cerr << "Invalid execution format\nExpected: ./VAAWVM <Asmmic directory>\n";
         return 1;
     }
     DF::Decoder Decoder_main;
@@ -20,6 +20,7 @@ int main(int argc, char *argv[]){
         return 1; 
     }
     Decoder_main.CleanUp();
+    Decoder_main.DebugVarFnc(); 
     std::cout << "[BRIDGE: Bytecode generation complete]\n";
     VMF::VirtualMachine VirtualMachine_main;
     VirtualMachine_main.iniMemmory(Decoder_main.GetMemoryDeclared());

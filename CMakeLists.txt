@@ -16,4 +16,4 @@ set(SOURCES
     Decoder/Decoder.cpp
 )
 
-add_executable(ASMMICVM ${SOURCES})
+add_executable(VAAWVM ${SOURCES})

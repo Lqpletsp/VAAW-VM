@@ -313,7 +313,8 @@ void VirtualMachine::OUTPUT(){
     while(VirtualVolatileMemory.at(GBuffer1).Data != "\0"){
         std::cout << VirtualVolatileMemory.at(GBuffer1).Data; 
         ClearTopIBuffer(); 
-        GetTopIBufferAddress(); 
+        if (!IBuffer.empty()) GetTopIBufferAddress(); 
+        else break; 
     };  
 }
 void VirtualMachine::SET_IN_WBUFFER(){
@@ -341,11 +342,13 @@ void VirtualMachine::LoadInVID(){
             VBuffer->MAA.push_back(GBuffer0); 
             VirtualVolatileMemory.at(GBuffer0).DT = VBuffer->DT; 
         }
+        GBuffer4 = VBuffer->MAA.at(GBuffer2); 
         VirtualVolatileMemory.at(VBuffer->MAA.at(GBuffer2)) = VirtualVolatileMemory.at(GBuffer1);  
         ClearTopWBuffer(); 
         GetTopWBufferAddress(); 
         ++GBuffer2; 
     };  
+    std::cout << "EXITLOADINVID\n";
 }
 void VirtualMachine::SET_IN_IDENTIFIER(){
     ++BCP; 
@@ -362,6 +365,7 @@ void VirtualMachine::SET_IN_IDENTIFIER(){
     } else {
         GBuffer1 = std::stoi(Dat::ByteCode.at(BCP).LT);
         LoadInVID();
+        // VID loading complete
     } 
 }
 void VirtualMachine::INPUT(){}

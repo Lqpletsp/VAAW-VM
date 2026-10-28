@@ -41,11 +41,10 @@ typedef enum {
 typedef struct {
     VVM_DataTypes dtp; 
     union{
-        char c_data;
-        union{
-            int i_data; 
-            double d_data; 
-        } number_data; 
+        char data_clt;
+        int data_ilt;
+        double data_dlt;
+        bool data_blt;
     } data;  
 } RawMemorySpace;  
 

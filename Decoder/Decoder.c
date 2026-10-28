@@ -74,7 +74,7 @@ static int GetIndexOfInst(char *token){
 static VM_Instructions GetInstruction(int idx){return imap[idx].vinst;}
 
 int DecodeFile(char *filename){
-    if (GetByteCodeState() == NULL){
+    if (!GetByteCodeState()){
         printf("[SECURITY@DECODER: ByteCodePool is NULL]\n"); 
         return 1; 
     }

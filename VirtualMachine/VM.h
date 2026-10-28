@@ -2,6 +2,6 @@
 #include "../Bridge.h"
 int InitializeByteCode(); 
 int AppendCodeStream(Code code);
-Code *GetByteCodeState(); 
+bool GetByteCodeState(); 
 void InitializeSys(); 
 void ExecuteByteCode(); 

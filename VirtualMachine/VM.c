@@ -1,6 +1,6 @@
 #include "VM.h"
 #include "../Bridge.h"
-#include <stdio.h>
+#include <unistd.h>
 #include <stdlib.h>
 static int TotalMemory; 
 static RawMemorySpace *VirtualVolatileMemory;  
@@ -10,8 +10,7 @@ static int GReg1;
 static int GReg2; 
 static int GReg3; 
 static int GReg4; 
-static int CSP; // Code Stream Pointer
-
+static int CSP = -1; // Code Stream Pointer
 typedef struct{
     int collection[512]; 
     int size; 
@@ -36,7 +35,9 @@ typedef struct {
 } CodeStream; 
 
 static CodeStream ByteCode; 
+static Code *CC; // Current code
 
+void HandleExceptions(); 
 enum Exceptions{
     FullWBuffer, 
     EmptyWBuffer,
@@ -49,6 +50,10 @@ enum Exceptions{
     WBufferOverflow, 
     IBufferOverflow, 
     GBufferOverflow, 
+    GarbageArgForDECM,
+    MemoryAlreadyDeclared, 
+    MemoryInitializationFailed, 
+    UnknownInstruction, 
 };
 static char *ExceptionMessages[] = {
     "Full WBuffer",
@@ -62,6 +67,10 @@ static char *ExceptionMessages[] = {
     "Index for WBuffer will lead to out of bounds",
     "Index for IBuffer will lead to out of bounds", 
     "Index for GBuffer will lead to out of bounds", 
+    "Argument given for DECM is not INTEGER",
+    "Attempted to declare memory more than once", 
+    "Memory initialization failed", 
+    "Unrecognized instruction"
 };
 int InitializeByteCode(){
     ByteCode.capacity = 256; 
@@ -78,19 +87,14 @@ int AppendCodeStream(Code code){
     ByteCode.size += 1; 
     return 0; 
 }
-Code *GetByteCodeState(){return ByteCode.stream;}
+bool GetByteCodeState(){return (ByteCode.stream == NULL) ? false : true;}
 void InitializeSys(){
     WBuffer.capacity = 512; 
     IBuffer.capacity = 512; 
     GBuffer.capacity = 512; 
     CBuffer.capacity = 512; 
 }
-void HandleExceptions(){
-    // searches for error code in GReg0
-    printf("%s", ExceptionMessages[GReg0]);  
-    // this module will handle exception messages using OUTPUT function of the VM 
-    exit(1);
-}
+
 void EnqueueWBuffer(){
     // stores the value of GReg1 in WBuffer 
     if (WBuffer.size >= WBuffer.capacity){
@@ -256,5 +260,83 @@ void PopCBuffer(){
     CBuffer.top -= 1; 
     CBuffer.size -=1; 
 }
+
+void IncrementCSP(){
+    ++CSP; 
+    CC = &ByteCode.stream[CSP]; 
+}
+void DECLARE_MEMORY_inst(){
+    if (TotalMemory > 0){
+        GReg0 = (int)MemoryAlreadyDeclared; 
+        HandleExceptions();  
+    }
+    IncrementCSP(); 
+    if (CC->main_type != Constant){
+        GReg0 = (int)GarbageArgForDECM; 
+        HandleExceptions(); 
+    }
+    if (CC->sub_type.vvmdtp != VM_INTEGER){
+        GReg0 = (int)GarbageArgForDECM; 
+        HandleExceptions(); 
+    }
+    GReg0 = CC->lt.data_ilt; 
+    TotalMemory = GReg0; 
+    VirtualVolatileMemory = (RawMemorySpace*)malloc(TotalMemory * sizeof(RawMemorySpace));
+    if (VirtualVolatileMemory == NULL && CSP != 0){
+        GReg0 = (int)MemoryInitializationFailed; 
+        HandleExceptions(); 
+    }
+}
+void OUTPUT_inst(){
+    GetFrontIBuffer(); 
+    GReg4 = GReg0; 
+    while (GReg0 != -1){
+        write(1, &GReg4, 1); 
+        // arg: 1->stdout, 2-> buffer, 3->number of bytes to read
+        DequeueIBuffer(); 
+        GetFrontIBuffer(); 
+    }
+}
+void HandleExceptions(){
+    free(ByteCode.stream); 
+    free(VirtualVolatileMemory); 
+    // if IBuffer is full, cannot store the exception message
+    IBuffer.front = 0; 
+    IBuffer.rear = 0; 
+    IBuffer.size = 0; 
+    GReg4 = 0; 
+    // searches for error code in GReg0
+    while (ExceptionMessages[GReg0][GReg4] != '\0'){
+        GReg1 = (int)ExceptionMessages[GReg0][GReg4]; 
+        EnqueueIBuffer(); 
+        ++GReg4; 
+    }
+    GReg1 = -1; 
+    EnqueueIBuffer(); 
+    // -1 is the null terminator for int array (queue) used by OUTPUT_inst
+    OUTPUT_inst(); 
+    exit(1);
+}
 void ExecuteByteCode(){
+    IncrementCSP(); 
+    while (CSP < ByteCode.size){
+        if (CC->main_type == VMInstructions){
+            switch(CC->sub_type.vinst){
+                case SETI: 
+                case SETW: 
+                case SETA: 
+                case SETC: 
+                case GOTO: 
+                case OUTPUT: 
+                    break; 
+                case DECM:
+                    DECLARE_MEMORY_inst(); 
+                    break; 
+            }
+        } else{
+            GReg0 = (int)UnknownInstruction; 
+            HandleExceptions(); 
+            // thrown an exception
+        }
+    }
 }

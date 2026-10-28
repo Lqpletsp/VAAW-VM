@@ -15,7 +15,7 @@ int main(int argc, char *argv[]){
         printf("[STOPPING NOW]\n");
         return 1;
     }
-    if (GetByteCodeState() == NULL){
+    if (!GetByteCodeState()){
         printf("[SECURITY@BRIDGE: Bytecode register uninitialized]\n"); 
         printf("[STOPPING NOW]\n"); 
         return 1;

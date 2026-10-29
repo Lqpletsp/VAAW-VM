@@ -1,2 +1,2 @@
 #pragma once
-int DecodeFile(char* filename); 
+int DecodeFile(char *filename);

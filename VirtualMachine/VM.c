@@ -44,38 +44,28 @@ static Code *CC; // Current code
 
 static void HandleExceptions();
 enum Exceptions {
-  FullWBuffer,
-  EmptyWBuffer,
   FullCBuffer,
   EmptyCBuffer,
-  FullGBuffer,
-  EmptyGBuffer,
-  FullIBuffer,
-  EmptyIBuffer,
-  WBufferOverflow,
-  IBufferOverflow,
-  GBufferOverflow,
   GarbageArgForDECM,
   MemoryAlreadyDeclared,
   MemoryInitializationFailed,
   UnknownInstruction,
+  NonIntConstantForCSP,
+  GarbageArgForGOTO,
+  GarbageArgForSETA,
+  AttemptedOutOfBoundsCSP
 };
 static char *ExceptionMessages[] = {
-    "Full WBuffer",
-    "Empty WBuffer",
     "Full CBuffer",
     "Empty CBuffer",
-    "Full GBuffer",
-    "Empty GBuffer",
-    "Full IBuffer",
-    "Empty IBuffer",
-    "Index for WBuffer will lead to out of bounds",
-    "Index for IBuffer will lead to out of bounds",
-    "Index for GBuffer will lead to out of bounds",
-    "Argument given for DECM is not INTEGER",
+    "Argument for DECM instruction not recognized",
     "Attempted to declare memory more than once",
     "Memory initialization failed",
-    "Unrecognized instruction"};
+    "Unrecognized instruction",
+    "Non integer constant given for CSP",
+    "Argument for GOTO instruction not recognized",
+    "Argument for SETA instruction not recognized",
+    "CSP changed is out-of-bounds for the current bytecode"};
 int InitializeByteCode() {
   ByteCode.capacity = 256;
   ByteCode.stream = (Code *)malloc(ByteCode.capacity * sizeof(Code));
@@ -143,103 +133,6 @@ static void AtGCache0() {
   }
   GReg0 = GCache0.collection[GReg1];
 }
-static void EnqueueWBuffer() {
-  // stores the value of GReg1 in WBuffer
-  if (WBuffer.size >= WBuffer.capacity) {
-    GReg0 = (int)FullWBuffer;
-    HandleExceptions();
-  }
-  if (WBuffer.rear >= WBuffer.capacity)
-    WBuffer.rear = 0;
-  WBuffer.collection[WBuffer.rear] = GReg1;
-  WBuffer.rear += 1;
-  WBuffer.size += 1;
-}
-static void DequeueWBuffer() {
-  if (WBuffer.size == 0) {
-    GReg0 = (int)EmptyWBuffer;
-    HandleExceptions();
-  }
-  WBuffer.collection[WBuffer.front] = 0;
-  WBuffer.front += 1;
-  if (WBuffer.front >= WBuffer.capacity)
-    WBuffer.front = 0;
-  WBuffer.size -= 1;
-}
-static void GetFrontWBuffer() {
-  // stores the front value to GReg0
-  if (WBuffer.size == 0) {
-    GReg0 = (int)EmptyWBuffer;
-    HandleExceptions();
-  }
-  GReg0 = WBuffer.collection[WBuffer.front];
-}
-static void GetBackWBuffer() {
-  if (WBuffer.size == 0) {
-    GReg0 = (int)EmptyWBuffer;
-    HandleExceptions();
-  }
-  GReg0 = WBuffer.collection[WBuffer.rear];
-}
-static void AtWBuffer() {
-  // uses the index in GReg1 and stores the data in that index to GReg2
-  if (GReg1 > WBuffer.capacity) {
-    GReg0 = (int)WBufferOverflow;
-    HandleExceptions();
-  }
-  GReg0 = WBuffer.collection[GReg1];
-}
-
-static void EnqueueIBuffer() {
-  // stores the value of GReg1 in WBuffer
-  if (IBuffer.size >= IBuffer.capacity) {
-    GReg0 = (int)FullWBuffer;
-    HandleExceptions();
-  }
-  if (IBuffer.rear >= IBuffer.capacity)
-    IBuffer.rear = 0;
-  IBuffer.collection[IBuffer.rear] = GReg1;
-  IBuffer.rear += 1;
-  IBuffer.size += 1;
-}
-static void DequeueIBuffer() {
-  if (IBuffer.size == 0) {
-    GReg0 = (int)EmptyIBuffer;
-    HandleExceptions();
-  }
-  IBuffer.collection[IBuffer.front] = 0;
-  IBuffer.front += 1;
-  if (IBuffer.front >= IBuffer.capacity)
-    IBuffer.front = 0;
-  IBuffer.size -= 1;
-}
-
-static void GetFrontIBuffer() {
-  // stores the front value to GReg0
-  if (IBuffer.size == 0) {
-    GReg0 = (int)EmptyIBuffer;
-    HandleExceptions();
-  }
-  GReg0 = IBuffer.collection[IBuffer.front];
-}
-
-static void GetBackIBuffer() {
-  if (IBuffer.size == 0) {
-    GReg0 = (int)EmptyIBuffer;
-    HandleExceptions();
-  }
-  GReg0 = IBuffer.collection[IBuffer.rear];
-}
-
-static void AtIBuffer() {
-  // uses the index in GReg1 and stores the data in that index to GReg2
-  if (GReg1 > IBuffer.capacity) {
-    GReg0 = (int)IBufferOverflow;
-    HandleExceptions();
-  }
-  GReg0 = IBuffer.collection[GReg1];
-}
-
 static void PushCBuffer() {
   // Pushes the value of GReg1
   if (CBuffer.size >= CBuffer.capacity) {
@@ -267,84 +160,25 @@ static void PopCBuffer() {
   CBuffer.size -= 1;
 }
 
-static void AllocateGCache1() {}
 static void IncrementCSP() {
   ++CSP;
   CC = &ByteCode.stream[CSP];
 }
-static void SET_IN_IBUFFER() {
-  IncrementCSP();
-  switch (CC->main_type) {
-  case Constant:
-    switch (CC->sub_type.vvmdtp) {
-    case VM_CHAR: {
-      GReg1 = (int)CC->lt.data_clt;
-      EnqueueIBuffer();
-      break;
-    }
-    case VM_STRING: {
-      GReg4 = 0;
-      while (CC->lt.data_slt[GReg4] != '\0') {
-        GReg1 = (int)CC->lt.data_slt[GReg4];
-        EnqueueIBuffer();
-        ++GReg4;
-      }
-      break;
-    }
-    case VM_BOOLEAN: {
-      if (CC->lt.data_blt) {
-        // true
-        GReg4 = 0;
-        while (GReg4 < 4) {
-          GReg1 = (int)"true"[GReg4];
-          EnqueueIBuffer();
-          ++GReg4;
-        }
-      } else {
-        // false
-        GReg4 = 0;
-        while (GReg4 < 5) {
-          GReg1 = (int)"false"[GReg4];
-          EnqueueIBuffer();
-          ++GReg4;
-        }
-      }
-      break;
-    }
-    case VM_INTEGER:
-      GReg2 = CC->lt.data_ilt;
-      GReg1 = -1;
-      PushCBuffer();
-      GReg1 = (GReg2 < 0) ? (int)'-' : (int)'+';
-      PushCBuffer();
-      do {
-        GReg3 = GReg2 % 10;
-        GReg2 /= 10;
-        GReg1 = (int)(char)(GReg3 + '0');
-        PushCBuffer();
-      } while (GReg2 < 10);
-      TopCBuffer();
-      while (GReg0 != -1) {
-        GReg1 = GReg0;
-        EnqueueIBuffer();
-        PopCBuffer();
-        TopCBuffer();
-      }
-      PopCBuffer(); // to clear -1
-      break;
-    case VM_DOUBLE:
-      break;
-    case VM_ADDRESS:
-      break;
-    }
-    GReg1 = -1;
-    EnqueueIBuffer();
-    break;
-  default:
-    // exception
-    break;
-  }
+static void SET_INT_IN_CBUFFER() {
+  // helper function
+  GReg2 = CC->lt.data_ilt;
+  GReg1 = -1;
+  PushCBuffer();
+  GReg1 = (GReg2 < 0) ? (int)'-' : (int)'+';
+  PushCBuffer();
+  do {
+    GReg3 = GReg2 % 10;
+    GReg2 /= 10;
+    GReg1 = (int)(char)(GReg3 + '0');
+    PushCBuffer();
+  } while (GReg2 < 10);
 }
+
 static void DECLARE_MEMORY_inst() {
   if (TotalMemory > 0) {
     GReg0 = (int)MemoryAlreadyDeclared;
@@ -369,13 +203,10 @@ static void DECLARE_MEMORY_inst() {
   }
 }
 static void OUTPUT_inst() {
-  GetFrontIBuffer();
   GReg4 = GReg0;
   while (GReg0 != -1) {
     write(1, &GReg4, 1);
     // arg: 1->stdout, 2-> buffer, 3->number of bytes to read
-    DequeueIBuffer();
-    GetFrontIBuffer();
   }
 }
 
@@ -390,25 +221,90 @@ static void HandleExceptions() {
   // searches for error code in GReg0
   while (ExceptionMessages[GReg0][GReg4] != '\0') {
     GReg1 = (int)ExceptionMessages[GReg0][GReg4];
-    EnqueueIBuffer();
     ++GReg4;
   }
   GReg1 = -1;
-  EnqueueIBuffer();
   // -1 is the null terminator for int array (queue) used by OUTPUT_inst
   OUTPUT_inst();
   exit(1);
+}
+static void SETA_inst() {
+  // format: SETA <destination> <source>
+  IncrementCSP();
+  if (CC->main_type != Constant && CC->sub_type.vvmdtp != VM_ADDRESS) {
+    GReg0 = (int)GarbageArgForSETA;
+    HandleExceptions();
+  }
+  GReg0 = CC->lt.data_ilt;
+  IncrementCSP();
+  switch (CC->sub_type.vvmdtp) {
+  case VM_INTEGER:
+  case VM_CHAR:
+  case VM_BOOLEAN:
+  case VM_DOUBLE:
+  case VM_ADDRESS:
+    VirtualVolatileMemory[GReg0].data =
+        VirtualVolatileMemory[CC->lt.data_ilt].data;
+    break;
+  case VM_STRING:
+    GReg1 = 0;
+    while (CC->lt.data_slt[GReg1] != '\0') {
+      VirtualVolatileMemory[GReg0 + GReg1].data.data_clt =
+          CC->lt.data_slt[GReg1];
+      ++GReg1;
+    }
+    VirtualVolatileMemory[GReg0 + GReg1].data.data_clt = 0;
+    break;
+  }
+}
+void static GOTO_inst() {
+  IncrementCSP();
+  switch (CC->main_type) {
+  case Constant: {
+    switch (CC->sub_type.vvmdtp) {
+    case VM_INTEGER:
+      if (CC->sub_type.vvmdtp != VM_INTEGER) {
+        GReg0 = (int)GarbageArgForGOTO;
+        HandleExceptions();
+      }
+      GReg0 = CC->lt.data_ilt;
+      if (GReg0 >= ByteCode.size || GReg0 < 0) {
+        GReg0 = (int)AttemptedOutOfBoundsCSP;
+        HandleExceptions();
+      }
+      break;
+    case VM_ADDRESS:
+      GReg0 = CC->lt.data_ilt;
+      if (GReg0 >= ByteCode.size || GReg0 < 0) {
+        GReg0 = (int)AttemptedOutOfBoundsCSP;
+        HandleExceptions();
+      }
+      break;
+    default:
+      GReg0 = (int)GarbageArgForGOTO;
+      HandleExceptions();
+      break;
+    }
+    CSP = GReg0;
+    CC = &ByteCode.stream[CSP];
+  }
+  default:
+    GReg0 = (int)GarbageArgForGOTO;
+    HandleExceptions();
+    break;
+  }
 }
 void ExecuteByteCode() {
   IncrementCSP();
   while (CSP < ByteCode.size) {
     if (CC->main_type == VMInstructions) {
       switch (CC->sub_type.vinst) {
-      case SETI:
-      case SETW:
       case SETA:
-      case SETC:
+        SETA_inst();
+        break;
       case GOTO:
+        GOTO_inst();
+        break;
       case OUTPUT:
         break;
       case DECM:
@@ -419,5 +315,6 @@ void ExecuteByteCode() {
       GReg0 = (int)UnknownInstruction;
       HandleExceptions();
     }
+    IncrementCSP();
   }
 }

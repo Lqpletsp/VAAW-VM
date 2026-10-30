@@ -2,16 +2,12 @@
 #include <stdbool.h>
 typedef enum {
   Constant,
-  VMMemoryType,
   VMInstructions,
   VMKeywords,
 } MainByteCodeTypes;
 
 typedef enum {
-  SETI,
-  SETW,
   SETA,
-  SETC,
   OUTPUT,
   DECM, // Declare Memory
   GOTO,

@@ -1,5 +1,6 @@
 #include "VM.h"
 #include "../Bridge.h"
+#include <complex.h>
 #include <stdlib.h>
 #include <unistd.h>
 static int TotalMemory;
@@ -11,6 +12,7 @@ static int GReg2;
 static int GReg3;
 static int GReg4;
 static int CSP = -1; // Code Stream Pointer
+static int FReg0;    // Flag Register
 typedef struct {
   int collection[512];
   int size;
@@ -26,12 +28,14 @@ typedef struct {
   int capacity;
 } stack;
 typedef struct {
-  RawMemorySpace collection[256];
-  int free_left;
-  int next_addr;
+  int *collection;
+  int size;
+  int front;
+  int rear;
   int capacity;
-} GCache;
-static special_queue WBuffer, IBuffer, GCache0;
+} MPool;
+static special_queue GCache0;
+static MPool MemoryPool;
 static stack CBuffer;
 typedef struct {
   Code *stream;
@@ -46,6 +50,7 @@ static void HandleExceptions();
 enum Exceptions {
   FullCBuffer,
   EmptyCBuffer,
+  EmptyGCache,
   GarbageArgForDECM,
   MemoryAlreadyDeclared,
   MemoryInitializationFailed,
@@ -53,7 +58,10 @@ enum Exceptions {
   NonIntConstantForCSP,
   GarbageArgForGOTO,
   GarbageArgForSETA,
-  AttemptedOutOfBoundsCSP
+  AttemptedOutOfBoundsCSP,
+  UnknownFRegCode,
+  RanOutOfMemory,
+  InvalidMemoryAddressAssignment
 };
 static char *ExceptionMessages[] = {
     "Full CBuffer",
@@ -65,7 +73,10 @@ static char *ExceptionMessages[] = {
     "Non integer constant given for CSP",
     "Argument for GOTO instruction not recognized",
     "Argument for SETA instruction not recognized",
-    "CSP changed is out-of-bounds for the current bytecode"};
+    "CSP changed is out-of-bounds for the current bytecode",
+    "Unknown FReg0 code",
+    "Memory full",
+    "Attempted invalid memory address assignment in memory pool"};
 int InitializeByteCode() {
   ByteCode.capacity = 256;
   ByteCode.stream = (Code *)malloc(ByteCode.capacity * sizeof(Code));
@@ -83,16 +94,10 @@ int AppendCodeStream(Code code) {
   return 0;
 }
 bool GetByteCodeState() { return (ByteCode.stream == NULL) ? false : true; }
-void InitializeSys() {
-  GCache0.capacity = 512;
-  WBuffer.capacity = 512;
-  IBuffer.capacity = 512;
-  CBuffer.capacity = 512;
-}
-
 static void DequeueGCache0() {
   if (GCache0.size == 0) {
     GReg0 = -1;
+    return;
   }
   GCache0.collection[GCache0.front] = 0;
   GCache0.front += 1;
@@ -100,10 +105,42 @@ static void DequeueGCache0() {
     GCache0.front = 0;
   GCache0.size -= 1;
 }
+static void EnqueueMPool() {
+  // altering the MemoryPool may lead to bugs regarding addresses
+  if (MemoryPool.size >= MemoryPool.capacity) {
+    GReg0 = (int)InvalidMemoryAddressAssignment;
+    FReg0 = 2;
+    return;
+  }
+  if (MemoryPool.rear >= MemoryPool.capacity)
+    MemoryPool.rear = 0;
+  MemoryPool.rear += 1;
+  MemoryPool.size += 1;
+}
+static void DequeueMPool() {
+  if (MemoryPool.size == 0) {
+    GReg0 = (int)RanOutOfMemory;
+    FReg0 = 2;
+    return;
+  }
+  MemoryPool.front += 1;
+  if (MemoryPool.front >= MemoryPool.capacity)
+    MemoryPool.front = 0;
+  MemoryPool.size -= 1;
+}
+static void TopMPool() {
+  if (MemoryPool.size == 0) {
+    GReg0 = (int)RanOutOfMemory;
+    FReg0 = 2;
+    return;
+  }
+  GReg1 = MemoryPool.collection[MemoryPool.front];
+}
 static void EnqueueGCache0() {
   // stores the value of GReg1 in GCache0
   if (GCache0.size >= GCache0.capacity) {
     DequeueGCache0();
+    return;
   }
   if (GCache0.rear >= GCache0.capacity)
     GCache0.rear = 0;
@@ -115,6 +152,7 @@ static void GetFrontGCache0() {
   // stores the front value to GReg0
   if (GCache0.size == 0) {
     GReg0 = -1;
+    return;
   }
   GReg0 = GCache0.collection[GCache0.front];
 }
@@ -122,6 +160,7 @@ static void GetFrontGCache0() {
 static void GetBackGCache0() {
   if (GCache0.size == 0) {
     GReg0 = -1;
+    return;
   }
   GReg0 = GCache0.collection[GCache0.rear];
 }
@@ -130,6 +169,7 @@ static void AtGCache0() {
   // uses the index in GReg1 and stores the data in that index to GReg2
   if (GReg1 > GCache0.capacity) {
     GReg0 = -1;
+    return;
   }
   GReg0 = GCache0.collection[GReg1];
 }
@@ -137,7 +177,8 @@ static void PushCBuffer() {
   // Pushes the value of GReg1
   if (CBuffer.size >= CBuffer.capacity) {
     GReg0 = (int)FullCBuffer;
-    HandleExceptions();
+    FReg0 = 2;
+    return;
   }
   CBuffer.collection[CBuffer.top] = GReg1;
   CBuffer.top += 1;
@@ -146,14 +187,15 @@ static void PushCBuffer() {
 static void TopCBuffer() {
   if (CBuffer.size == 0) {
     GReg0 = (int)EmptyCBuffer;
-    HandleExceptions();
+    FReg0 = 2;
+    return;
   }
   GReg0 = CBuffer.collection[CBuffer.top];
 }
 static void PopCBuffer() {
   if (CBuffer.size == 0) {
     GReg0 = (int)EmptyCBuffer;
-    HandleExceptions();
+    FReg0 = 2;
   }
   CBuffer.collection[CBuffer.top] = 0;
   CBuffer.top -= 1;
@@ -203,37 +245,38 @@ static void DECLARE_MEMORY_inst() {
   }
 }
 static void OUTPUT_inst() {
-  GReg4 = GReg0;
-  while (GReg0 != -1) {
-    write(1, &GReg4, 1);
+  // start address at GReg0
+  GReg4 = 0;
+  while (VirtualVolatileMemory[GReg0 + GReg4].data.data_clt != '\0') {
     // arg: 1->stdout, 2-> buffer, 3->number of bytes to read
+    write(1, &VirtualVolatileMemory[GReg0 + GReg4].data.data_ilt, 1);
+    ++GReg4;
   }
 }
 
 static void HandleExceptions() {
-  free(ByteCode.stream);
-  free(VirtualVolatileMemory);
-  // if IBuffer is full, cannot store the exception message
-  IBuffer.front = 0;
-  IBuffer.rear = 0;
-  IBuffer.size = 0;
-  GReg4 = 0;
   // searches for error code in GReg0
+  GReg4 = 0;
+  MemoryPool.front = 0;
+  MemoryPool.rear = 0;
+  MemoryPool.size = 0;
+  TopMPool();
   while (ExceptionMessages[GReg0][GReg4] != '\0') {
-    GReg1 = (int)ExceptionMessages[GReg0][GReg4];
+    VirtualVolatileMemory[GReg1 + GReg4].data.data_clt =
+        ExceptionMessages[GReg0][GReg4];
     ++GReg4;
   }
-  GReg1 = -1;
-  // -1 is the null terminator for int array (queue) used by OUTPUT_inst
+  VirtualVolatileMemory[GReg1 + GReg4].data.data_clt = '\0';
+  GReg0 = GReg1;
   OUTPUT_inst();
-  exit(1);
 }
 static void SETA_inst() {
   // format: SETA <destination> <source>
   IncrementCSP();
   if (CC->main_type != Constant && CC->sub_type.vvmdtp != VM_ADDRESS) {
     GReg0 = (int)GarbageArgForSETA;
-    HandleExceptions();
+    FReg0 = 2;
+    return;
   }
   GReg0 = CC->lt.data_ilt;
   IncrementCSP();
@@ -265,24 +308,28 @@ void static GOTO_inst() {
     case VM_INTEGER:
       if (CC->sub_type.vvmdtp != VM_INTEGER) {
         GReg0 = (int)GarbageArgForGOTO;
-        HandleExceptions();
+        FReg0 = 2;
+        return;
       }
       GReg0 = CC->lt.data_ilt;
       if (GReg0 >= ByteCode.size || GReg0 < 0) {
         GReg0 = (int)AttemptedOutOfBoundsCSP;
-        HandleExceptions();
+        FReg0 = 2;
+        return;
       }
       break;
     case VM_ADDRESS:
       GReg0 = CC->lt.data_ilt;
       if (GReg0 >= ByteCode.size || GReg0 < 0) {
         GReg0 = (int)AttemptedOutOfBoundsCSP;
-        HandleExceptions();
+        FReg0 = 2;
+        return;
       }
       break;
     default:
       GReg0 = (int)GarbageArgForGOTO;
-      HandleExceptions();
+      FReg0 = 2;
+      return;
       break;
     }
     CSP = GReg0;
@@ -290,7 +337,8 @@ void static GOTO_inst() {
   }
   default:
     GReg0 = (int)GarbageArgForGOTO;
-    HandleExceptions();
+    FReg0 = 2;
+    return;
     break;
   }
 }
@@ -306,15 +354,66 @@ void ExecuteByteCode() {
         GOTO_inst();
         break;
       case OUTPUT:
+        OUTPUT_inst();
         break;
       case DECM:
         DECLARE_MEMORY_inst();
         break;
+      case END:
+        FReg0 = 1;
+        break;
       }
+      if (FReg0 != 0)
+        return;
     } else {
       GReg0 = (int)UnknownInstruction;
-      HandleExceptions();
+      FReg0 = 2;
+      return;
     }
     IncrementCSP();
   }
+}
+void mini_os() {
+  while (true) {
+    ExecuteByteCode();
+    switch (FReg0) {
+    case 1:
+      return;
+    case 2:
+      HandleExceptions();
+      break;
+    default:
+      GReg0 = (int)UnknownFRegCode;
+      HandleExceptions();
+    }
+    FReg0 = 0;
+  }
+}
+bool Boot(int memory) {
+  if (memory < 0)
+    return false;
+  GCache0.capacity = 256;
+  GCache0.front = 0;
+  GCache0.rear = 0;
+  GCache0.size = 0;
+  CBuffer.capacity = 256;
+  CBuffer.top = 0;
+  CBuffer.size = 0;
+  TotalMemory = memory;
+  MemoryPool.rear = 0;
+  MemoryPool.front = 0;
+  MemoryPool.size = 0;
+  VirtualVolatileMemory =
+      (RawMemorySpace *)malloc(TotalMemory * sizeof(RawMemorySpace));
+  MemoryPool.collection = (int *)malloc(memory * sizeof(int));
+  if (VirtualVolatileMemory == NULL || MemoryPool.collection == NULL)
+    return false;
+  MemoryPool.capacity = memory;
+  GReg0 = memory - 1;
+  while (GReg0 >= 0) {
+    MemoryPool.collection[GReg0] = GReg0;
+    --GReg0;
+  }
+  mini_os();
+  return true;
 }

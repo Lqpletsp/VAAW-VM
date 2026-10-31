@@ -11,6 +11,7 @@ typedef enum {
   OUTPUT,
   DECM, // Declare Memory
   GOTO,
+  END,
 } VM_Instructions;
 
 typedef enum {
